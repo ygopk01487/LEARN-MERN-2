@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import useStyles from "./styles";
 import { TextField, Button, Typography, Paper } from "@material-ui/core";
 import FileBase from "react-file-base64";
 import { useDispatch, useSelector } from "react-redux";
-import { createPost, updatePost } from "../../actions/posts";
+import {
+  createPost,
+  getPostsBySearchAndPage,
+  updatePost,
+} from "../../actions/posts";
+import { useNavigate } from "react-router-dom";
 
 const Form = ({ currentId, setCurrentId }) => {
   const classes = useStyles();
 
+  const navigate = useNavigate();
+
+  const dispatch = useDispatch();
+
   const [postData, setPostData] = useState({
-    creator: "",
     title: "",
     message: "",
     tags: "",
@@ -17,7 +25,13 @@ const Form = ({ currentId, setCurrentId }) => {
   });
 
   const post = useSelector((state) =>
-    currentId ? state.posts.find((p) => p._id === currentId) : null
+    currentId ? state.posts.posts.find((p) => p._id === currentId) : null
+  );
+
+  const user = JSON.parse(localStorage.getItem("profile"));
+
+  const { pageSize, posts, currentPage, numberOfPage } = useSelector(
+    (state) => state.posts
   );
 
   useEffect(() => {
@@ -26,19 +40,24 @@ const Form = ({ currentId, setCurrentId }) => {
     }
   }, [post]);
 
-  const dispatch = useDispatch();
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (currentId) {
-      dispatch(updatePost(currentId, postData));
+      dispatch(
+        updatePost(currentId, { ...postData, name: user?.result?.name })
+      );
       clear();
     } else {
-      dispatch(createPost(postData));
+      dispatch(createPost({ ...postData, name: user?.result?.name }, navigate));
+      if (posts.length === pageSize && currentPage <= numberOfPage) {
+        navigate(`/posts?page=${numberOfPage}`);
+      } else if (posts.length === 1 && currentPage <= numberOfPage) {
+        navigate(0);
+      }
       clear();
     }
   };
-
 
   const onChanges = (e) => {
     setPostData({ ...postData, [e.target.name]: e.target.value });
@@ -47,13 +66,22 @@ const Form = ({ currentId, setCurrentId }) => {
   const clear = () => {
     setCurrentId(0);
     setPostData({
-      creator: "",
       title: "",
       message: "",
       tags: "",
       selectedFile: "",
     });
   };
+
+  if (!user?.result?.name) {
+    return (
+      <Paper className={classes.paper}>
+        <Typography variant="h6" align="center">
+          Please Sign In to create your own memories and like other's memories
+        </Typography>
+      </Paper>
+    );
+  }
 
   return (
     <>
@@ -67,14 +95,6 @@ const Form = ({ currentId, setCurrentId }) => {
           <Typography variant="h6">
             {currentId ? "Editing " : "Creating "}a Memory
           </Typography>
-          <TextField
-            name="creator"
-            variant="outlined"
-            label="Creator"
-            fullWidth
-            value={postData.creator}
-            onChange={onChanges}
-          ></TextField>
           <TextField
             name="title"
             variant="outlined"
